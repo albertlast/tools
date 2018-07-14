@@ -23,6 +23,8 @@
  *
  * ***** END LICENSE BLOCK ***** */
 
+ini_set('max_execution_time', 3000);
+ 
 require_once('SSI.php');
 
 // This instantiates the object and autoruns it
@@ -39,6 +41,7 @@ class Populate
 	private $refreshRate = 0;
 	private $loremIpsum = null;
 	private $ounters = array();
+	private $member_id = array();
 
 	private $timeStart = 0;
 
@@ -50,7 +53,7 @@ class Populate
 		$this->counters['categories']['current'] = 0;
 		$this->counters['boards']['max'] = 100;
 		$this->counters['boards']['current'] = 0;
-		$this->counters['members']['max'] = 270000;
+		$this->counters['members']['max'] = 2000;
 		$this->counters['members']['current'] = 0;
 		$this->counters['topics']['max'] = 370000;
 		$this->counters['topics']['current'] = 0;
@@ -119,7 +122,7 @@ class Populate
 			if (mt_rand() < (mt_getrandmax() / 2))
 			{
 				$boardOptions = array_merge($boardOptions, array(
-					'target_board' => mt_rand(1, $this->counters['boards']['current']-1),
+					'target_board' => mt_rand(1, $this->counters['boards']['current']),
 					'move_to' => 'child',
 				));
 			}
@@ -153,8 +156,32 @@ class Populate
 
 	private function makeMessages ()
 	{
-		global $sourcedir;
+		global $sourcedir,$smcFunc;
 		require_once($sourcedir . '/Subs-Post.php');
+		$member_id =  array();
+		$board_id = array();
+		$topic_id = array();
+		
+		$request = $smcFunc['db_query']('',
+		'select id_member from {db_prefix}members');
+		
+		while ($row = $smcFunc['db_fetch_assoc']($request))
+			$member_id[] = $row['id_member'];
+		$smcFunc['db_free_result']($request);
+		
+		$request = $smcFunc['db_query']('',
+		'select id_board from {db_prefix}boards');
+		
+		while ($row = $smcFunc['db_fetch_assoc']($request))
+			$board_id[] = $row['id_board'];
+		$smcFunc['db_free_result']($request);
+		
+		$request = $smcFunc['db_query']('',
+		'select id_topic from {db_prefix}topics');
+		
+		while ($row = $smcFunc['db_fetch_assoc']($request))
+			$topic_id[] = $row['id_topic'];
+		$smcFunc['db_free_result']($request);
 
 		while ($this->counters['messages']['current'] < $this->counters['messages']['max'] && $this->blockSize--)
 		{
@@ -165,12 +192,12 @@ class Populate
 			);
 
 			$topicOptions = array(
-				'id' => $this->counters['topics']['current'] < $this->counters['topics']['max'] && mt_rand() < (int)(mt_getrandmax() * ($this->counters['topics']['max'] / $this->counters['messages']['max'])) ? 0 : ($this->counters['topics']['current'] < $this->counters['topics']['max'] ? mt_rand(1, ++$this->counters['topics']['current']) : mt_rand(1, $this->counters['topics']['current'])),
-				'board' => mt_rand(1, $this->counters['boards']['max']),
+				'id' => $this->counters['topics']['current'] < $this->counters['topics']['max'] && mt_rand() < (int)(mt_getrandmax() * ($this->counters['topics']['max'] / $this->counters['messages']['max'])) ? 0 : ($this->counters['topics']['current'] < $this->counters['topics']['max'] ? $topic_id[mt_rand(1, count($topic_id) - 1)] : $topic_id[mt_rand(1, count($topic_id) - 1)]),
+				'board' => $board_id[mt_rand(1, $this->counters['boards']['max'] - 1)],
 				'mark_as_read' => TRUE,
 			);
 
-			$member = mt_rand(1, $this->counters['members']['max']);
+			$member = $member_id[mt_rand(1, $this->counters['members']['max'] - 1)];
 			$posterOptions = array(
 				'id' => $member,
 				'name' => 'Member ' . $member,
@@ -187,6 +214,7 @@ class Populate
 	{
 		if (!$end)
 		{
+			//header('Refresh: ' . $this->refreshRate . '; URL=' . $_SERVER['PHP_SELF'].'?XDEBUG_PROFILE');
 			header('Refresh: ' . $this->refreshRate . '; URL=' . $_SERVER['PHP_SELF']);
 			// Pausing while we start again (server timeouts = bad)
 			echo 'Please wait while we refresh the page... <br /><br />';
